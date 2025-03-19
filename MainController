@@ -1,0 +1,210 @@
+package com.example.project;
+
+import javafx.event.ActionEvent;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.fxml.Initializable;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.stage.Stage;
+import java.io.IOException;
+import java.net.URL;
+import java.util.Optional;
+import java.util.ResourceBundle;
+
+import static com.example.project.Inventory.allProducts;
+
+public class MainController implements Initializable {
+
+    // This class will allow the Main GUI page to show and call out other functions to ensure functionality of the GUI
+
+    //Table
+    @FXML
+    private TableView<Product> myTable;
+
+    //Columns
+    @FXML
+    private TableColumn<Product, String> nameColumn;
+    @FXML
+    private TableColumn<Product, Integer> idColumn;
+    @FXML
+    private TableColumn<Product, Integer> quantityColumn;
+    @FXML
+    private TableColumn<Product, Integer> priceColumn;
+    @FXML
+    private TableColumn<Product, String> createdColumn;
+    @FXML
+    private TableColumn<Product, String> updatedColumn;
+
+    private MainController viewController;
+
+    //private ObservableList<Product> productList = FXCollections.observableArrayList();
+
+    // This method allows for setting up UI components before the scene is displayed
+    // It will connect a column in the table to a specific property in the product class
+    @Override
+    public void initialize(URL location, ResourceBundle resources) {
+        idColumn.setCellValueFactory(new PropertyValueFactory<>("id"));
+        nameColumn.setCellValueFactory(new PropertyValueFactory<Product, String>("name"));
+        quantityColumn.setCellValueFactory(new PropertyValueFactory<Product, Integer>("quantity"));
+        priceColumn.setCellValueFactory(new PropertyValueFactory<Product, Integer>("price"));
+        createdColumn.setCellValueFactory(new PropertyValueFactory<Product, String>("createdAt"));
+        updatedColumn.setCellValueFactory(new PropertyValueFactory<Product, String>("updatedAt"));
+
+    }
+
+    // This method will open up a new window to add a product
+    @FXML
+    public void addProduct(ActionEvent event) throws IOException {
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("adding-product.fxml"));
+        Parent root = loader.load();
+
+        ProductAddController addController = loader.getController();
+        addController.setMainController(this); // Pass by reference
+
+        Stage newStage = new Stage();
+        newStage.setScene(new Scene(root));
+        newStage.setTitle("Add Product");
+        newStage.show();
+    }
+
+    // This method help to add product to the table by reference and ensure that no mistake is made from window to window
+    // This ensure that only one table is used to add, remove, and update products.
+    public void addProductToTable(Product product) {
+        myTable.getItems().add(product);
+    }
+
+    // This method will remove a product from the table
+    public void removeProduct(ActionEvent event){
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Input");
+        dialog.setHeaderText(null);
+        dialog.setContentText("Enter Product ID to Delete:");
+        Optional<String> result = dialog.showAndWait();
+
+        // error checking and handling
+        if(result == null || !result.isPresent()) {
+            showALert("Error", "Product ID cannot be empty");
+            return;
+        }
+        try{
+            int productId = Integer.parseInt(result.get());
+
+            // This will search and find the product in our inventory
+            Product selectedProduct = Inventory.getProduct(productId);
+
+            if(selectedProduct != null) {
+                Inventory.deleteProduct(selectedProduct);
+
+                refreshTable();
+
+                showALert("Message", "Product deleted successfully!");
+            }else{
+                showALert("Error", "Product not found with id: " + productId);
+            }
+        }
+        // catching any exceptions that might occur such as mis inputs.
+        catch(NumberFormatException e){
+            showALert("Error", "Invalid Product ID please enter a numeric value!");
+        }
+    }
+
+    // This method will modify and update product information
+    public void updateProduct(ActionEvent event){
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Input");
+        dialog.setHeaderText(null);
+        dialog.setContentText("Enter Product ID to Update:");
+        Optional<String> result = dialog.showAndWait();
+
+        // error checking and handling
+        if (!result.isPresent()) {
+            showALert("Error", "Product ID cannot be empty");
+            return;
+        }
+
+        try {
+
+            int productId = Integer.parseInt(result.get());
+            Product selectedProduct = Inventory.getProduct(productId);
+
+            // error checking and handling
+            if (selectedProduct == null) {
+                showALert("Error", "Could not find product ID: " + productId);
+                return;
+            }
+
+            // This will ask to change name
+            TextInputDialog nameDialog = new TextInputDialog(selectedProduct.getName());
+            nameDialog.setTitle("Update Product");
+            nameDialog.setHeaderText(null);
+            nameDialog.setContentText("Enter New Name:");
+            Optional<String> nameResult = nameDialog.showAndWait();
+            if (!nameResult.isPresent()) return;
+            String newName = nameResult.get();
+
+            // This will ask to change quantity
+            TextInputDialog quantityDialog = new TextInputDialog(String.valueOf(selectedProduct.getQuantity()));
+            quantityDialog.setTitle("Update Product");
+            quantityDialog.setHeaderText(null);
+            quantityDialog.setContentText("Enter New Quantity:");
+            Optional<String> quantityResult = quantityDialog.showAndWait();
+            if (!quantityResult.isPresent()) return;
+            int newQuantity = Integer.parseInt(quantityResult.get());
+
+            // This will ask to change price
+            TextInputDialog priceDialog = new TextInputDialog(String.valueOf(selectedProduct.getPrice()));
+            priceDialog.setTitle("Update Product");
+            priceDialog.setHeaderText(null);
+            priceDialog.setContentText("Enter New Price:");
+            Optional<String> priceResult = priceDialog.showAndWait();
+            if (!priceResult.isPresent()) return;
+            double newPrice = Double.parseDouble(priceResult.get());
+
+            boolean updated = Inventory.updateProduct(productId, newName, newQuantity, newPrice);
+            if (updated) {
+                refreshTable();
+                showALert("Success", "Product updated successfully!");
+            } else {
+                // error checking and handling
+                showALert("Error", "Could not update product!");
+            }
+        } catch (NumberFormatException e) {
+            // catching any exceptions that might occur such as mis inputs.
+            showALert("Error", "Invalid Product ID please enter a numeric value!");
+        }
+    }
+
+    //  Allows you to view all the products in the table
+    //  But the products are already viewable by default via the table view and therefore don't understand why this is needed.
+    @FXML
+    public void viewProducts(ActionEvent event) throws IOException {
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("view-all.fxml"));
+        Parent root = loader.load();
+
+        Stage newStage = new Stage();
+        newStage.setScene(new Scene(root));
+        newStage.setTitle("View All");
+        newStage.show();
+    }
+
+
+    //Methods made for reuse in project
+
+    //refresh method
+    public void refreshTable() {
+        myTable.getItems().clear(); // Clear current data
+        myTable.getItems().setAll(Inventory.getAllProducts()); // Reload updated data
+    }
+
+    // One method for all the alerts
+    private void showALert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+}
